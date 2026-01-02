@@ -328,16 +328,17 @@ class Campaign:
         len_cp = int(kam_new.end_kam[0])
 
         self.number = kam_new.n_kamp[0]
+
         begin = kam_new.bgn_kam[1:len_bgn_kam + 1].decode(codepage)
         try:
             self.begin = datetime.strptime(begin, DATE_FORMAT)
         except ValueError:
             pass
-        end = kam_new.end_kam[1:len_end_kam + 1].decode(codepage)
 
+        end = kam_new.end_kam[1:len_end_kam + 1].decode(codepage)
         try:
             self.end = datetime.strptime(end, DATE_FORMAT)
-        except:
+        except ValueError:
             pass
 
         self.ar = None if len_cp == 0 else kam_new.cp[1: len_cp + 1].decode(codepage)
