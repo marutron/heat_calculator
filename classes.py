@@ -430,8 +430,6 @@ class TVS:
         if date:
             self.raw_heat = self.calculate_heat(date)
 
-        pass
-
     def __repr__(self):
         return f"{self.number}  {self.ar}  {self.coord}  {self.heat}"
 
@@ -502,7 +500,9 @@ class TVS:
         Возвращает название секции БВ, где находится ТВС
         :return: Optional[str]
         """
-        if 43 <= self.most <= 58:
+        if 1 <= self.most <= 15:
+            return "az"
+        elif 43 <= self.most <= 58:
             return "b03"
         elif 60 <= self.most <= 75:
             return "b01"
