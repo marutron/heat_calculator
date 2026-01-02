@@ -101,31 +101,31 @@ def get_dates() -> Dates:
     return dates
 
 
-def get_content(tvs_hash: dict[str, "TVS"]):
+def get_content(tvs_hash: dict[str, "TVS"]) -> (dict[str, "TVS"], dict[str, "TVS"], dict[str, "TVS"], dict[str, "TVS"]):
     """
     Сортирует содержимое общего словаря с ТВС на списки содержимого АЗ и отсеков БВ
     :param tvs_hash: словарь, содержащий все ТВС
     :return:
     """
-    az = []
-    b_03 = []
-    b_01 = []
-    b_02 = []
+    az = {}
+    b_03 = {}
+    b_01 = {}
+    b_02 = {}
     for tvs in tvs_hash.values():
         match tvs.get_section():
             case "az":
-                az.append(tvs)
+                az[tvs.number] = tvs
             case "b03":
-                b_03.append(tvs)
+                b_03[tvs.number] = tvs
             case "b01":
-                b_01.append(tvs)
+                b_01[tvs.number] = tvs
             case "b02":
-                b_02.append(tvs)
+                b_02[tvs.number] = tvs
 
     return az, b_03, b_01, b_02
 
 
-def calculate_section(content: list["TVS"], date: datetime) -> (int, float):
+def calculate_section(content: dict[str, "TVS"], date: datetime) -> (int, float):
     """
     Подсчитывает количество ТВС в отсеке и общее тепловыделение отсека
     :param content:
@@ -134,6 +134,41 @@ def calculate_section(content: list["TVS"], date: datetime) -> (int, float):
     """
     count = len(content)
     heat = 0.0
-    for tvs in content:
+    for tvs in content.values():
         heat += tvs.calculate_heat(date)
     return count, heat
+
+
+@dataclass
+class Permutation:
+    tvs_number: str
+    new_most: int
+    new_tel: int
+
+
+def parse_mp_file(file_path: str) -> list[Permutation]:
+    """
+    Парсит файл МП в список последовательных перестановок
+    :param file_path:
+    :return:
+    """
+    permutations = []
+    with open(file_path) as file:
+        lines = file.readlines()
+        for line in lines:
+            split_line = line.split()
+            try:
+                tvs_number = split_line[3]
+                try:
+                    new_most = int(split_line[6])
+                    new_tel = int(split_line[7])
+                except ValueError as err:
+                    print(f"Ошибка парсинга файла МП: `{file_path}`.\n(Ошибка приведения типов int()).")
+                    raise err
+            except IndexError as err:
+                print(f"Ошибка парсинга файла МП: `{file_path}`.\n(Ошибка индексации строки файла.)")
+                raise err
+
+            permutations.append(Permutation(tvs_number, new_most, new_tel))
+
+        return permutations
