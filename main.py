@@ -1,10 +1,9 @@
 import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from math import ceil, floor
 
 from services import clear_folder_files, get_dates, calculate_section, get_content, parse_mp_file, get_permutation_time, \
-    make_permutations, permutation_processor
+    make_permutations, permutation_processor, Day, generate_comment
 from topaz_file_handler import read_topaz, decode_tvs_pool
 
 cur_dir = os.getcwd()
@@ -14,20 +13,6 @@ initial_state_file = os.path.join(input_dir, "initial_state")
 stage_3_file = os.path.join(input_dir, "stage_3.mp")
 stage_5_file = os.path.join(input_dir, "stage_5.mp")
 otvs_file = os.path.join(input_dir, "otvs.mp")
-
-
-@dataclass
-class Day:
-    date: datetime
-    count_az: int
-    heat_az: float
-    count_b03: int
-    heat_b03: float
-    count_b01: int
-    heat_b01: float
-    count_b02: int
-    heat_b02: float
-
 
 if __name__ == '__main__':
 
@@ -105,6 +90,11 @@ if __name__ == '__main__':
         count_b01, heat_b01 = calculate_section(b01_content, today)
         count_b02, heat_b02 = calculate_section(b02_content, today)
 
+        try:
+            comment = generate_comment(days[-1], count_az, count_b03, count_b01, count_b02)
+        except IndexError:
+            comment = ""
+
         days.append(Day(
             today,
             count_az,
@@ -114,7 +104,8 @@ if __name__ == '__main__':
             count_b01,
             heat_b01,
             count_b02,
-            heat_b02
+            heat_b02,
+            comment
         ))
 
         if today >= dates.end_date:

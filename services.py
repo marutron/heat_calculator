@@ -11,6 +11,39 @@ if TYPE_CHECKING:
     from classes import TVS
 
 
+@dataclass
+class Permutation:
+    tvs_number: str
+    new_most: int
+    new_tel: int
+
+
+@dataclass
+class Day:
+    date: datetime
+    count_az: int
+    heat_az: float
+    count_b03: int
+    heat_b03: float
+    count_b01: int
+    heat_b01: float
+    count_b02: int
+    heat_b02: float
+    comment: str
+
+
+@dataclass
+class Dates:
+    begin_date: datetime
+    end_date: datetime
+    stage_3_begin: datetime
+    stage_3_end: datetime
+    stage_5_begin: datetime
+    stage_5_end: datetime
+    otvs_begin: datetime
+    otvs_end: datetime
+
+
 def clear_folder_files(folder_path):
     """Удаляет все файлы в папке и её вложенных подпапках, сохраняя структуру каталогов."""
     try:
@@ -66,18 +99,6 @@ def parse_real48(real48):
 
     # Итоговый результат: мантисса * 2^экспонента
     return mantissa * (2.0 ** exponent)
-
-
-@dataclass
-class Dates:
-    begin_date: datetime
-    end_date: datetime
-    stage_3_begin: datetime
-    stage_3_end: datetime
-    stage_5_begin: datetime
-    stage_5_end: datetime
-    otvs_begin: datetime
-    otvs_end: datetime
 
 
 def get_dates() -> Dates:
@@ -153,13 +174,6 @@ def calculate_section(content: dict[str, "TVS"], date: datetime) -> (int, float)
     for tvs in content.values():
         heat += tvs.calculate_heat(date)
     return count, heat
-
-
-@dataclass
-class Permutation:
-    tvs_number: str
-    new_most: int
-    new_tel: int
 
 
 def parse_mp_file(file_path: str) -> list[Permutation]:
@@ -297,3 +311,33 @@ def permutation_processor(
             tvs_hash=tvs_hash,
             mode="floor"
         )
+
+
+def generate_comment(
+        last_day: Day,
+        count_az: int,
+        count_b03: int,
+        count_b01: int,
+        count_b02: int,
+) -> str:
+    """
+    Генерирует комментарий "Перестановки" для корректного заполнения итоговой таблицы
+    :param last_day:
+    :param count_az:
+    :param count_b03:
+    :param count_b01:
+    :param count_b02:
+    :return:
+    """
+    comment = []
+    if last_day.count_az > count_az:
+        comment.append(f"Выгрузка {last_day.count_az - count_az} ТВС в БВ.")
+    elif last_day.count_az < count_az:
+        comment.append(f"Загрузка {count_az - last_day.count_az} ТВС из БВ в реактор.")
+
+    if ((last_day.count_b03 > count_b03 or last_day.count_b01 > count_b01 or last_day.count_b02 > count_b02)
+            and last_day.count_az == count_az):
+        delta_bv = (last_day.count_b03 + last_day.count_b01 + last_day.count_b02) - (count_b03 + count_b01 + count_b02)
+        comment.append(f"Отправка " f"{delta_bv} " f"ОТВС.")
+
+    return "".join(elm for elm in comment)
