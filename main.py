@@ -1,9 +1,10 @@
 import os
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from constants import DATE_FORMAT
 from services import clear_folder_files, get_dates, calculate_section, get_content, parse_mp_file, get_permutation_time, \
     make_permutations, permutation_processor, Day, generate_comment
+from table_handler import fill_table
 from topaz_file_handler import read_topaz, decode_tvs_pool
 
 cur_dir = os.getcwd()
@@ -112,4 +113,23 @@ if __name__ == '__main__':
             break
         day_iter += 1
 
-    pass
+    # готовим данные и заполняем итоговую таблицу
+    summary = {
+        "block": dates.block_number,
+        "begin": datetime.strftime(dates.begin_date, DATE_FORMAT),
+        "end": datetime.strftime(dates.end_date, DATE_FORMAT)
+    }
+
+    table_data = []
+    for day in days:
+        row = [
+            f"{datetime.strftime(day.date, DATE_FORMAT)}",
+            f"{day.count_az} / {round(day.heat_az, 1)}",
+            f"{day.count_b03} / {round(day.heat_b03, 1)}",
+            f"{day.count_b01} / {round(day.heat_b01, 1)}",
+            f"{day.count_b02} / {round(day.heat_b02, 1)}",
+            f"{day.comment}"
+        ]
+        table_data.append(row)
+
+    fill_table(table_data, summary)

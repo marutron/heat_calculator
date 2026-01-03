@@ -34,6 +34,7 @@ class Day:
 
 @dataclass
 class Dates:
+    block_number: int
     begin_date: datetime
     end_date: datetime
     stage_3_begin: datetime
@@ -126,6 +127,7 @@ def get_dates() -> Dates:
     assert otvs_begin < otvs_end
 
     dates = Dates(
+        controller.block_number,
         begin_date,
         end_date,
         stage_3_begin,
@@ -309,7 +311,7 @@ def permutation_processor(
             time_by_permutation=time_by_permutation,
             iterator=iterator,
             tvs_hash=tvs_hash,
-            mode="floor"
+            mode="ceil"
         )
 
 
