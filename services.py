@@ -1,7 +1,8 @@
 import os
 from dataclasses import dataclass
-from datetime import datetime
-from typing import TYPE_CHECKING
+from datetime import datetime, timedelta
+from math import ceil, floor
+from typing import TYPE_CHECKING, Literal, Iterator
 
 from constants import DATE_FORMAT, TIME_DATE_FORMAT
 from input import controller
@@ -85,19 +86,34 @@ def get_dates() -> Dates:
     :return: словарь дат из controller.py
     """
     try:
-        dates = Dates(
-            begin_date=datetime.strptime(controller.begin_date, DATE_FORMAT),
-            end_date=datetime.strptime(controller.end_date, DATE_FORMAT),
-            stage_3_begin=datetime.strptime(controller.stage_3_begin, TIME_DATE_FORMAT),
-            stage_3_end=datetime.strptime(controller.stage_3_end, TIME_DATE_FORMAT),
-            stage_5_begin=datetime.strptime(controller.stage_5_begin, TIME_DATE_FORMAT),
-            stage_5_end=datetime.strptime(controller.stage_5_end, TIME_DATE_FORMAT),
-            otvs_begin=datetime.strptime(controller.otvs_begin, TIME_DATE_FORMAT),
-            otvs_end=datetime.strptime(controller.otvs_end, TIME_DATE_FORMAT)
-        )
+        begin_date = datetime.strptime(controller.begin_date, DATE_FORMAT)
+        end_date = datetime.strptime(controller.end_date, DATE_FORMAT)
+        stage_3_begin = datetime.strptime(controller.stage_3_begin, TIME_DATE_FORMAT)
+        stage_3_end = datetime.strptime(controller.stage_3_end, TIME_DATE_FORMAT)
+        stage_5_begin = datetime.strptime(controller.stage_5_begin, TIME_DATE_FORMAT)
+        stage_5_end = datetime.strptime(controller.stage_5_end, TIME_DATE_FORMAT)
+        otvs_begin = datetime.strptime(controller.otvs_begin, TIME_DATE_FORMAT)
+        otvs_end = datetime.strptime(controller.otvs_end, TIME_DATE_FORMAT)
     except ValueError as err:
         print("Ошибка парсинга дат, проверьте данные в файле `input/controller.py`")
         raise err
+
+    # полную проверку делать очень долго => минимальную валидацию разместил здесь
+    assert begin_date < end_date
+    assert stage_3_begin < stage_3_end
+    assert stage_5_begin < stage_5_end
+    assert otvs_begin < otvs_end
+
+    dates = Dates(
+        begin_date,
+        end_date,
+        stage_3_begin,
+        stage_3_end,
+        stage_5_begin,
+        stage_5_end,
+        otvs_begin,
+        otvs_end,
+    )
     return dates
 
 
@@ -169,6 +185,115 @@ def parse_mp_file(file_path: str) -> list[Permutation]:
                 print(f"Ошибка парсинга файла МП: `{file_path}`.\n(Ошибка индексации строки файла.)")
                 raise err
 
-            permutations.append(Permutation(tvs_number, new_most, new_tel))
+            # не учитываем перестановки имитаторов нигде
+            if "ITVS" not in tvs_number:
+                permutations.append(Permutation(tvs_number, new_most, new_tel))
 
         return permutations
+
+
+def get_permutation_time(permutations_count: int, begin: datetime, end: datetime) -> float:
+    """
+    Высчитывает время на одну перестановку (округляет в большую сторону)
+    :param permutations_count:
+    :param begin:
+    :param end:
+    :return:
+    """
+    overall_time = (end - begin).total_seconds()
+    try:
+        permutation_time = ceil(overall_time / permutations_count)
+    except ZeroDivisionError as err:
+        print("Количество перестановок = 0")
+        raise err
+    return permutation_time
+
+
+def make_permutations(
+        period_begin_time: datetime,
+        period_end_time: datetime,
+        time_by_permutation: float,
+        iterator: Iterator[Permutation],
+        tvs_hash: dict[str, "TVS"],
+        mode: Literal["floor", "ceil"] = "ceil"
+):
+    """
+    Выполняет перестановки, укладывающиеся в отведенный промежуток времени
+    :param period_begin_time: конец временного периода
+    :param period_end_time: начало временного периода (дня)
+    :param time_by_permutation: время, затрачиваемое на одну перестановку
+    :param iterator: итератор перестановок
+    :param tvs_hash: словарь, содержащий информащию о всех ТВС (мутирует)
+    :param mode: режим округления
+    :return: None, но мутирует `tvs_hash`
+    """
+    # вычисляем время, доступное для перестановок (в секундах)
+    time_reserve = (period_end_time - period_begin_time).total_seconds()
+    # вычисляем доступное число перестановок
+    match mode:
+        case "floor":
+            perm_number = floor(time_reserve / time_by_permutation)
+        case _:
+            perm_number = ceil(time_reserve / time_by_permutation)
+
+    # делаем перестановки
+    i = 1
+    while i <= perm_number:
+        try:
+            permutation = next(iterator)
+        except StopIteration:
+            i += 1
+            continue
+        tvs = tvs_hash[permutation.tvs_number]
+        tvs.most = permutation.new_most
+        tvs.tel = permutation.new_tel
+        i += 1
+
+
+def permutation_processor(
+        period_begin: datetime,
+        period_end: datetime,
+        today: datetime,
+        time_by_permutation: float,
+        iterator: Iterator[Permutation],
+        tvs_hash: dict[str, "TVS"],
+):
+    """
+    Производит перестановки в период времени от `period_begin` до `period_end`
+    :param period_begin: начало обрабатываемого периода
+    :param period_end: конец обрабатываемо периода
+    :param today: день (главный итератор)
+    :param time_by_permutation: время на перестановку
+    :param iterator: итератор по списку перестановок
+    :param tvs_hash: словарь, содержащий информащию о всех ТВС (мутирует)
+    :return: None, но мутирует `tvs_hash`
+    """
+    if period_begin.date() == today.date():
+        tomorrow = today + timedelta(days=1)
+        make_permutations(
+            period_begin_time=period_begin,
+            period_end_time=tomorrow,
+            time_by_permutation=time_by_permutation,
+            iterator=iterator,
+            tvs_hash=tvs_hash,
+            mode="floor"
+        )
+    elif period_begin.date() < today.date() < period_end.date():
+        tomorrow = today + timedelta(days=1)
+        make_permutations(
+            period_begin_time=today,
+            period_end_time=tomorrow,
+            time_by_permutation=time_by_permutation,
+            iterator=iterator,
+            tvs_hash=tvs_hash,
+            mode="ceil"
+        )
+    elif today.date() == period_end.date():
+        make_permutations(
+            period_begin_time=today,
+            period_end_time=period_end,
+            time_by_permutation=time_by_permutation,
+            iterator=iterator,
+            tvs_hash=tvs_hash,
+            mode="floor"
+        )
