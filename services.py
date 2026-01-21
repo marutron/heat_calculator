@@ -1,10 +1,11 @@
 import os
+from copy import copy
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from math import ceil, floor
 from typing import TYPE_CHECKING, Literal, Iterator
 
-from constants import DATE_FORMAT, TIME_DATE_FORMAT
+from constants import DATE_FORMAT, TIME_DATE_FORMAT, reactor_places_gen
 from input import controller
 
 if TYPE_CHECKING:
@@ -178,12 +179,13 @@ def calculate_section(content: dict[str, "TVS"], date: datetime) -> (int, float)
     return count, heat
 
 
-def parse_mp_file(file_path: str) -> list[Permutation]:
+def parse_mp_file(file_path: str, *args) -> list[Permutation]:
     """
     Парсит файл МП в список последовательных перестановок
     :param file_path:
     :return:
     """
+    backup_permutations = []
     permutations = []
     with open(file_path) as file:
         lines = file.readlines()
@@ -192,6 +194,8 @@ def parse_mp_file(file_path: str) -> list[Permutation]:
             try:
                 tvs_number = split_line[3]
                 try:
+                    old_most = int(split_line[4])
+                    old_tel = int(split_line[5])
                     new_most = int(split_line[6])
                     new_tel = int(split_line[7])
                 except ValueError as err:
@@ -204,6 +208,10 @@ def parse_mp_file(file_path: str) -> list[Permutation]:
             # не учитываем перестановки имитаторов нигде
             if "ITVS" not in tvs_number:
                 permutations.append(Permutation(tvs_number, new_most, new_tel))
+                backup_permutations.append(Permutation(tvs_number, old_most, old_tel))
+
+        if "backup" in args:
+            return backup_permutations, permutations
 
         return permutations
 
@@ -343,3 +351,54 @@ def generate_comment(
         comment.append(f"Отправка " f"{delta_bv} " f"ОТВС.")
 
     return "".join(elm for elm in comment)
+
+
+def get_places(places_gen: dict):
+    """Формировщик списка мест ЗБМ"""
+    places_lst: list[str] = []
+    for item, val in places_gen.items():
+        for elm in val:
+            places_lst.append(f"{item}-{elm}")
+    return places_lst
+
+
+def get_irrevocable_permutations(permutations_file: str):
+    """
+    Получает множество перестановок, выполненных в БВ безвозвратно
+    """
+    az_coordinates = get_places(reactor_places_gen)
+    irrevocable_permutations = set()
+    with open(permutations_file, "r") as file:
+        lines = file.readlines()
+        for line in lines:
+            cell_number = int(line.strip())
+            irrevocable_permutations.add(az_coordinates[cell_number - 1])
+    return irrevocable_permutations
+
+
+def filter_backup(backup_permutations: list[Permutation], irrevocable_permutations: set[str]) -> list[Permutation]:
+    """
+    Фильтрует обратные перестановки из БВ в АЗ
+    """
+    result_permutations = []
+
+    both_places = []
+    perm_set = set()
+    coord_set = set()
+    duplications = []
+
+    for permutation in backup_permutations:
+        coord = f"{permutation.new_most}-{permutation.new_tel}"
+        if coord in coord_set:
+            duplications.append(permutation)
+        coord_set.add(coord)
+
+
+    for permutation in backup_permutations:
+        coord = f"{permutation.new_most}-{permutation.new_tel}"
+        coord_set.add(coord)
+        if coord in irrevocable_permutations:
+            both_places.append(permutation)
+        if coord not in irrevocable_permutations:
+            result_permutations.append(copy(permutation))
+    return result_permutations

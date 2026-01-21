@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from constants import DATE_FORMAT
 from services import clear_folder_files, get_dates, calculate_section, get_content, parse_mp_file, get_permutation_time, \
-    make_permutations, permutation_processor, Day, generate_comment
+    permutation_processor, Day, generate_comment, get_irrevocable_permutations, filter_backup
 from table_handler import fill_table
 from topaz_file_handler import read_topaz, decode_tvs_pool
 
@@ -13,6 +13,7 @@ output_dir = os.path.join(cur_dir, "output")
 initial_state_file = os.path.join(input_dir, "initial_state")
 stage_3_file = os.path.join(input_dir, "stage_3.mp")
 stage_5_file = os.path.join(input_dir, "stage_5.mp")
+permutations_file = os.path.join(input_dir, "permutations.txt")
 otvs_file = os.path.join(input_dir, "otvs.mp")
 
 if __name__ == '__main__':
@@ -23,8 +24,19 @@ if __name__ == '__main__':
     chunk_pool, k_pool = read_topaz(initial_state_file, CHUNK_SIZE)
     tvs_hash, _ = decode_tvs_pool(k_pool)
 
-    stage_3_permutations = parse_mp_file(stage_3_file)
-    stage_5_permutations = parse_mp_file(stage_5_file)
+    try:
+        irrevocable_permutations = get_irrevocable_permutations(permutations_file)
+    except FileNotFoundError:
+        irrevocable_permutations = set()
+
+    backup_permutations, stage_3_permutations = parse_mp_file(stage_3_file, "backup")
+    backup_permutations = filter_backup(backup_permutations, irrevocable_permutations)
+
+    try:
+        stage_5_permutations = parse_mp_file(stage_5_file)
+    except FileNotFoundError:
+        stage_5_permutations = backup_permutations
+
     otvs_permutations = parse_mp_file(otvs_file)
 
     stage_3_iter = iter(stage_3_permutations)
